@@ -1,0 +1,871 @@
+<!DOCTYPE html><html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Lua Live Monitor AI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#070b12;
+  --panel:#0d1420;
+  --panel2:#101a29;
+  --border:#1d2a3c;
+  --text:#e8f0fc;
+  --muted:#8191a8;
+  --blue:#398bff;
+  --cyan:#36d6e7;
+  --green:#38d996;
+  --yellow:#ffc857;
+  --red:#ff6277;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,Arial,sans-serif}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{display:flex;min-height:100vh}
+.sidebar{width:245px;flex-shrink:0;background:#090f19;border-right:1px solid var(--border);padding:22px 14px;display:flex;flex-direction:column}
+.brand{display:flex;gap:11px;align-items:center;padding:0 8px 26px}
+.logo{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(135deg,#2374ff,#24d5e4);font-weight:900;color:#fff;font-size:18px}
+.brand h1{font-size:15px;margin:0}
+.brand p{font-size:11px;color:var(--muted);margin:3px 0 0}
+.nav-title{font-size:10px;color:#65758c;text-transform:uppercase;letter-spacing:1.5px;padding:14px 10px 8px}
+.nav{display:flex;align-items:center;gap:11px;width:100%;border:1px solid transparent;background:transparent;color:#9eacc0;padding:11px 12px;text-align:left;border-radius:9px;margin-bottom:4px}
+.nav:hover,.nav.active{background:#13243b;border-color:#203b5e;color:#fff}
+.nav .ico{width:20px;text-align:center;color:#69aaff}
+.side-bottom{margin-top:auto;border:1px solid var(--border);background:#0d1623;border-radius:11px;padding:13px}
+.side-bottom small{color:var(--muted)}
+.status{display:inline-flex;align-items:center;gap:7px;color:var(--green);font-size:11px}
+.dot{width:7px;height:7px;background:currentColor;border-radius:50%;display:inline-block}
+.dot.live{animation:pulse 1.4s infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 currentColor}50%{opacity:.6;box-shadow:0 0 0 4px transparent}}
+.main{min-width:0;flex:1}
+.topbar{height:69px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:#090f18;gap:12px;flex-wrap:wrap}
+.topbar h2{font-size:17px;margin:0}
+.top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pill{border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:#a7b7cc;font-size:12px;white-space:nowrap}
+.avatar{width:33px;height:33px;display:grid;place-items:center;border-radius:9px;background:#17335a;color:#75b1ff;font-weight:800}
+.content{padding:26px;max-width:1600px;margin:auto}
+.page{display:none}
+.page.active{display:block}
+.heading{display:flex;justify-content:space-between;gap:15px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.heading h3{font-size:21px;margin:0 0 5px}
+.heading p{color:var(--muted);margin:0;font-size:12px}
+.btn{border:1px solid var(--border);background:#111c2b;color:var(--text);border-radius:8px;padding:9px 13px;white-space:nowrap}
+.btn:hover{border-color:#3d6ca5}
+.btn.primary{background:#1767db;border-color:#2679f0;color:white}
+.btn.danger{color:#ff9aaa}
+.btn.success{background:#0f7a4a;border-color:#1a9a61;color:#eafff3}
+.btn.success:hover{background:#0d8a52;border-color:#22b070}
+.btn.stop{background:#8a1f2c;border-color:#b02a3a;color:#ffe8eb}
+.btn.stop:hover{background:#a02333;border-color:#c93a4b}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.monitoring{animation:glow 1.8s infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(56,217,150,.4)}50%{box-shadow:0 0 0 5px rgba(56,217,150,0)}}
+.grid{display:grid;gap:15px}
+.stats{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;min-width:0}
+.stat-top{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}
+.stat-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:#142844;color:#6eb2ff;font-size:17px}
+.stat-number{font-size:28px;font-weight:750;letter-spacing:-.7px;margin:15px 0 3px}
+.stat-foot{font-size:11px;color:var(--muted)}
+.two{grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr)}
+.card-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+.card-title h4{margin:0;font-size:14px}
+.muted{color:var(--muted)}
+.small{font-size:11px}
+.chart{height:220px;display:flex;align-items:flex-end;gap:10px;padding:12px 2px 0;border-bottom:1px solid var(--border)}
+.bar-wrap{height:100%;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:8px;min-width:0}
+.bar{width:min(30px,80%);min-height:3px;background:linear-gradient(180deg,#39d7e8,#286cf5);border-radius:5px 5px 0 0;transition:height .3s}
+.bar-label{font-size:10px;color:var(--muted)}
+.legend{display:flex;gap:15px;margin-top:14px;flex-wrap:wrap;color:var(--muted);font-size:11px}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:7px;height:7px;background:var(--blue);border-radius:2px}
+.health-row{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid var(--border)}
+.health-row:last-child{border:0}
+.health-row strong{font-size:12px}
+.health-row small{display:block;color:var(--muted);margin-top:3px;font-size:11px}
+.badge{display:inline-block;border-radius:5px;padding:4px 7px;font-size:10px;font-weight:700;text-transform:uppercase}
+.badge.info{background:#142b48;color:#7dbaff}
+.badge.warning{background:#3a2c15;color:#ffd078}
+.badge.error{background:#3b1b27;color:#ff91a1}
+.badge.success{background:#103b28;color:#63e6a8}
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:570px}
+th{text-align:left;color:#8191a8;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.7px;padding:12px;border-bottom:1px solid var(--border)}
+td{padding:13px 12px;border-bottom:1px solid #192536;font-size:12px;vertical-align:top}
+tr:last-child td{border-bottom:0}
+.message{max-width:500px;overflow-wrap:anywhere}
+.filters{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:15px}
+.field{background:#0a111b;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px 12px;outline:none;min-width:0}
+.field:focus{border-color:#337edb}
+.filters .field{flex:1;min-width:130px}
+.terminal{background:#05090f;border:1px solid #1b2b3d;border-radius:10px;overflow:hidden}
+.terminal-head{display:flex;justify-content:space-between;align-items:center;background:#0c1420;padding:11px 14px;border-bottom:1px solid #1b2b3d}
+.terminal-body{padding:14px;height:360px;overflow:auto;font:12px/1.8 ui-monospace,SFMono-Regular,Consolas,monospace}
+.log-line{display:flex;gap:10px;overflow-wrap:anywhere;border-bottom:1px solid #101a27;padding:4px 0}
+.log-time{color:#63748b;flex-shrink:0}
+.log-info{color:#77b5ff}
+.log-warning{color:#ffd078}
+.log-error{color:#ff7188}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-item{display:flex;flex-direction:column;gap:7px}
+.form-item label{font-size:12px;color:#9aabc0}
+.form-item .field{width:100%}
+.form-item.full{grid-column:1/-1}
+textarea.field{resize:vertical;min-height:100px}
+.notice{border:1px solid #5a4722;background:#211b10;color:#f5ce80;border-radius:9px;padding:13px;font-size:12px;margin-bottom:17px}
+.empty{text-align:center;padding:35px;color:var(--muted)}
+.footer{padding:20px 0 4px;color:#53647a;font-size:10px;text-align:center}
+.toast{position:fixed;right:20px;bottom:20px;max-width:340px;background:#14253a;border:1px solid #2d4d70;padding:12px 16px;border-radius:9px;z-index:99;display:none}
+.toast.show{display:block}
+.mobile-menu{display:none}
+.monitor-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.monitor-indicator{display:inline-flex;align-items:center;gap:7px;font-size:11px;padding:7px 11px;border-radius:8px;border:1px solid var(--border);background:#0c1420;white-space:nowrap}
+.monitor-indicator.on{color:var(--green);border-color:#1e6b48;background:#0d2419}
+.monitor-indicator.off{color:var(--muted)}
+.monitor-indicator .dot{width:7px;height:7px}
+@media(max-width:1050px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}}
+@media(max-width:700px){
+ .sidebar{position:fixed;z-index:10;top:0;bottom:0;left:-260px;transition:left .2s;box-shadow:0 0 35px #0008}
+ .sidebar.open{left:0}
+ .topbar{padding:0 12px;height:auto;min-height:60px;padding-top:8px;padding-bottom:8px}
+ .content{padding:17px 13px}
+ .mobile-menu{display:inline-block}
+ .topbar h2{font-size:14px}
+ .pill{display:none}
+ .stats{gap:9px}
+ .card{padding:13px}
+ .stat-number{font-size:23px}
+ .form-grid{grid-template-columns:1fr}
+ .form-item.full{grid-column:auto}
+ .top-actions{width:100%;justify-content:flex-start}
+ .monitor-controls{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="logo">L</div>
+    <div><h1>Lua Live Monitor</h1><p>AI MONITORING CONSOLE</p></div>
+  </div>
+  <div class="nav-title">Workspace</div>
+  <button class="nav active" data-page="overview"><span class="ico">▦</span> Overview</button>
+  <button class="nav" data-page="monitor"><span class="ico">◉</span> Live Monitor</button>
+  <button class="nav" data-page="terminal"><span class="ico">⌘</span> Terminal Logs</button>
+  <button class="nav" data-page="activity"><span class="ico">◷</span> User Activity</button>
+  <button class="nav" data-page="analytics"><span class="ico">▥</span> Analytics</button>
+  <div class="nav-title">Tools</div>
+  <button class="nav" data-page="ai"><span class="ico">✳</span> AI Analyzer</button>
+  <button class="nav" data-page="settings"><span class="ico">⚙</span> Settings & API</button>
+  <div class="side-bottom">
+    <div class="status"><span class="dot"></span><span id="connectionLabel">Connecting...</span></div>
+    <p class="small muted" id="connectionDetail">Checking Supabase connection</p>
+    <small>Lua Live Monitor AI · v1.0</small>
+  </div>
+</aside><main class="main">
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:12px">
+    <button class="btn mobile-menu" id="menuBtn">☰</button>
+    <h2 id="topTitle">Overview</h2>
+  </div>
+  <div class="top-actions">
+    <div class="monitor-controls">
+      <span class="monitor-indicator off" id="monitorIndicator"><span class="dot"></span><span id="monitorLabel">Monitoring OFF</span></span>
+      <button class="btn success" id="startMonitorBtn">▶ Start Monitoring</button>
+      <button class="btn stop" id="stopMonitorBtn" disabled>■ Stop Monitoring</button>
+    </div>
+    <span class="pill" id="clock">--:--:--</span>
+    <span class="pill" id="syncStatus">Supabase: checking</span>
+    <div class="avatar">LM</div>
+  </div>
+</header><div class="content">
+<section class="page active" id="page-overview">
+  <div class="heading">
+    <div><h3>Monitoring Overview</h3><p>Ringkasan event yang tersimpan di Supabase.</p></div>
+    <button class="btn primary" id="refreshBtn">↻ Refresh Data</button>
+  </div>
+  <div class="grid stats">
+    <div class="card"><div class="stat-top">Total Events <span class="stat-icon">▤</span></div><div class="stat-number" id="totalStat">0</div><div class="stat-foot">Event yang berhasil dimuat</div></div>
+    <div class="card"><div class="stat-top">Info Events <span class="stat-icon">●</span></div><div class="stat-number" id="infoStat">0</div><div class="stat-foot">Informasi umum</div></div>
+    <div class="card"><div class="stat-top">Warnings <span class="stat-icon">△</span></div><div class="stat-number" id="warningStat">0</div><div class="stat-foot">Event peringatan</div></div>
+    <div class="card"><div class="stat-top">Errors <span class="stat-icon">!</span></div><div class="stat-number" id="errorStat">0</div><div class="stat-foot">Event error</div></div>
+  </div>
+  <div class="grid two">
+    <div class="card">
+      <div class="card-title"><h4>Event Activity</h4><span class="small muted">7 hari terakhir</span></div>
+      <div class="chart" id="activityChart"></div>
+      <div class="legend"><span><i></i> Events per day</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><h4>System Status</h4><span class="badge info" id="overallBadge">Checking</span></div>
+      <div class="health-row"><div><strong>Supabase API</strong><small>Database connection</small></div><span id="dbHealth" class="badge warning">Checking</span></div>
+      <div class="health-row"><div><strong>Realtime Listener</strong><small>Event change subscription</small></div><span id="rtHealth" class="badge warning">Checking</span></div>
+      <div class="health-row"><div><strong>Browser Storage</strong><small>Local configuration</small></div><span class="badge info">Available</span></div>
+      <div class="health-row"><div><strong>Last Updated</strong><small id="lastUpdated">Belum ada</small></div><span class="status"><span class="dot"></span>Ready</span></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:17px">
+    <div class="card-title"><h4>Recent Events</h4><button class="btn" data-goto="monitor">View all →</button></div>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Message</th><th>Created At</th></tr></thead><tbody id="recentTable"></tbody></table></div>
+  </div>
+</section><section class="page" id="page-monitor">
+  <div class="heading"><div><h3>Live Monitor</h3><p>Melihat dan menambahkan event ke database.</p></div><button class="btn primary" id="newEventBtn">+ New Event</button></div>
+  <div class="card">
+    <div class="filters">
+      <input class="field" id="searchEvents" placeholder="Cari pesan event...">
+      <select class="field" id="filterType"><option value="">Semua tipe</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select>
+      <button class="btn" id="clearFilters">Reset Filter</button>
+    </div>
+    <div class="table-wrap"><table><thead><tr><th>Type</th><th>Message</th><th>Metadata</th><th>Time</th></tr></thead><tbody id="eventsTable"></tbody></table></div>
+    <div id="eventsEmpty" class="empty" hidden>Belum ada event. Tambahkan event pertama.</div>
+  </div>
+  <div class="card" id="eventFormCard" style="margin-top:16px;display:none">
+    <div class="card-title"><h4>Tambahkan Event</h4><button class="btn" id="closeEventForm">Close</button></div>
+    <form id="eventForm" class="form-grid">
+      <div class="form-item"><label for="eventType">Event Type</label><select class="field" id="eventType"><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select></div>
+      <div class="form-item"><label for="eventSource">Source</label><input class="field" id="eventSource" maxlength="100" placeholder="Contoh: Lua Runtime"></div>
+      <div class="form-item full"><label for="eventMessage">Message</label><textarea class="field" id="eventMessage" maxlength="1000" required placeholder="Masukkan pesan event..."></textarea></div>
+      <div class="form-item full"><label for="eventMetadata">Metadata JSON (opsional)</label><textarea class="field" id="eventMetadata" placeholder='{"module":"monitor","version":"1.0"}'></textarea></div>
+      <div class="form-item full"><button class="btn primary" type="submit" id="saveEventBtn">Save Event</button></div>
+    </form>
+  </div>
+</section><section class="page" id="page-terminal">
+  <div class="heading"><div><h3>Terminal Logs</h3><p>Log aktivitas dashboard dan hasil koneksi database.</p></div><div><button class="btn" id="downloadLogs">Export Logs</button> <button class="btn danger" id="clearLocalLogs">Clear View</button></div></div>
+  <div class="terminal">
+    <div class="terminal-head"><span class="small">● &nbsp; LIVE CONSOLE</span><span class="small muted" id="terminalCount">0 lines</span></div>
+    <div class="terminal-body" id="terminalBody"></div>
+  </div>
+</section><section class="page" id="page-activity">
+  <div class="heading"><div><h3>User Activity</h3><p>Ringkasan sumber event berdasarkan metadata.</p></div></div>
+  <div class="grid stats">
+    <div class="card"><div class="stat-top">Unique Sources</div><div class="stat-number" id="sourceStat">0</div><div class="stat-foot">Source yang terdeteksi</div></div>
+    <div class="card"><div class="stat-top">Events Today</div><div class="stat-number" id="todayStat">0</div><div class="stat-foot">Event hari ini</div></div>
+  </div>
+  <div class="card"><div class="card-title"><h4>Activity by Source</h4></div><div class="table-wrap"><table><thead><tr><th>Source</th><th>Total Events</th><th>Latest Event</th></tr></thead><tbody id="sourceTable"></tbody></table></div></div>
+</section><section class="page" id="page-analytics">
+  <div class="heading"><div><h3>Analytics</h3><p>Distribusi dan tren event dari data Supabase.</p></div></div>
+  <div class="grid two">
+    <div class="card"><div class="card-title"><h4>Event Distribution</h4></div><div id="distribution"></div></div>
+    <div class="card"><div class="card-title"><h4>Summary</h4></div><div id="analyticsSummary"></div></div>
+  </div>
+  <div class="card" style="margin-top:16px"><div class="card-title"><h4>Daily Activity</h4></div><div id="dailyAnalytics"></div></div>
+</section><section class="page" id="page-ai">
+  <div class="heading"><div><h3>AI Analyzer</h3><p>Analisis sederhana berdasarkan log yang dimuat, tanpa API AI eksternal.</p></div></div>
+  <div class="notice">Analyzer ini berjalan di browser dan bukan model AI eksternal. Jangan masukkan API secret atau informasi sensitif.</div>
+  <div class="card">
+    <div class="card-title"><h4>Analyze Monitor Events</h4></div>
+    <p class="muted small">Analisis jumlah error, warning, pola pesan, dan rekomendasi dasar.</p>
+    <button class="btn primary" id="runAnalysis">Analyze Events</button>
+    <div id="analysisOutput" style="margin-top:18px"></div>
+  </div>
+</section><section class="page" id="page-settings">
+  <div class="heading"><div><h3>Settings & API</h3><p>Pengaturan koneksi Supabase.</p></div></div>
+  <div class="notice">Publishable key memang dapat digunakan di frontend. Jangan masukkan secret key, service_role key, atau JWT secret ke file HTML.</div>
+  <div class="card">
+    <div class="card-title"><h4>Supabase Configuration</h4><span class="badge info">Client-side</span></div>
+    <div class="form-grid">
+      <div class="form-item full"><label for="settingsUrl">Project URL</label><input class="field" id="settingsUrl" readonly></div>
+      <div class="form-item full"><label for="settingsKey">Publishable Key</label><input class="field" id="settingsKey" type="password" autocomplete="off" placeholder="Isi publishable key di bagian konfigurasi kode"></div>
+      <div class="form-item full"><button class="btn primary" id="testConnection">Test Connection</button></div>
+    </div>
+    <p class="muted small" id="settingsResult">Status koneksi akan muncul di sini.</p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <div class="card-title"><h4>Database Requirements</h4></div>
+    <p class="muted small">Tabel yang digunakan: <code>public.monitor_events</code>. Kolom: id, event_type, message, metadata, created_at.</p>
+    <button class="btn" id="copySql">Copy SQL Schema</button>
+    <pre id="sqlPreview" style="white-space:pre-wrap;overflow-wrap:anywhere;color:#9bb2ce;font-size:11px"></pre>
+  </div>
+</section>
+<div class="footer">Lua Live Monitor AI · Client-side Supabase · Data diperbarui sesuai akses database</div>
+</div>
+</main>
+</div>
+<div class="toast" id="toast"></div><script>
+"use strict";
+
+/* ================================================
+   SUPABASE CONFIGURATION
+   Isi publishable key kamu di bawah.
+   Jangan pernah menaruh secret/service_role key di HTML.
+================================================ */
+const SUPABASE_URL = "https://tcldwsgttoswzwzelgyg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_Fb7_ZlKk9RZQScXjVO98NQ_IaXrahh1";
+
+const SQL_SCHEMA = `create table if not exists public.monitor_events (
+  id bigint generated always as identity primary key,
+  event_type text not null default 'info'
+    check (event_type in ('info', 'warning', 'error')),
+  message text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.monitor_events enable row level security;
+
+create policy "Public read monitor events"
+on public.monitor_events for select to anon using (true);
+
+create policy "Public insert monitor events"
+on public.monitor_events for insert to anon
+with check (length(message) between 1 and 1000);
+
+grant select, insert on public.monitor_events to anon;
+grant usage, select on sequence public.monitor_events_id_seq to anon;
+
+alter publication supabase_realtime add table public.monitor_events;`;
+
+let db = null;
+let events = [];
+let localLogs = [];
+let realtimeChannel = null;
+let realtimeReady = false;
+let monitoringActive = false;
+let refreshing = false;
+
+const $ = id => document.getElementById(id);
+
+function toast(message) {
+  const el = $("toast");
+  el.textContent = message;
+  el.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => el.classList.remove("show"), 3200);
+}
+
+function escapeHTML(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
+  })[char]);
+}
+
+function safeDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDate(value) {
+  const date = safeDate(value);
+  return date ? date.toLocaleString("id-ID") : "—";
+}
+
+function log(level, message) {
+  const time = new Date().toLocaleTimeString("id-ID", {hour12:false});
+  localLogs.push({time, level, message:String(message)});
+  if (localLogs.length > 500) localLogs.shift();
+  renderTerminal();
+}
+
+function renderTerminal() {
+  const body = $("terminalBody");
+  if (!body) return;
+  body.innerHTML = localLogs.map(item =>
+    `<div class="log-line"><span class="log-time">${escapeHTML(item.time)}</span><span class="log-${escapeHTML(item.level)}">[${escapeHTML(item.level.toUpperCase())}]</span><span>${escapeHTML(item.message)}</span></div>`
+  ).join("");
+  $("terminalCount").textContent = `${localLogs.length} lines`;
+  body.scrollTop = body.scrollHeight;
+}
+
+function setConnection(online, detail) {
+  $("connectionLabel").textContent = online ? "Connected" : "Disconnected";
+  $("connectionLabel").style.color = online ? "var(--green)" : "var(--red)";
+  $("connectionDetail").textContent = detail;
+  $("syncStatus").textContent = online ? "Supabase: online" : "Supabase: offline";
+  $("dbHealth").textContent = online ? "Online" : "Offline";
+  $("dbHealth").className = "badge " + (online ? "info" : "error");
+  $("overallBadge").textContent = online ? "Operational" : "Unavailable";
+  $("overallBadge").className = "badge " + (online ? "info" : "error");
+}
+
+/* ============================================
+   MONITORING STATE UI
+============================================ */
+function setMonitoringUI(active) {
+  monitoringActive = active;
+  const indicator = $("monitorIndicator");
+  const label = $("monitorLabel");
+  const startBtn = $("startMonitorBtn");
+  const stopBtn = $("stopMonitorBtn");
+
+  if (active) {
+    indicator.className = "monitor-indicator on";
+    indicator.querySelector(".dot").classList.add("live");
+    label.textContent = "Monitoring LIVE";
+    startBtn.disabled = true;
+    startBtn.classList.add("monitoring");
+    startBtn.textContent = "● Monitoring...";
+    stopBtn.disabled = false;
+  } else {
+    indicator.className = "monitor-indicator off";
+    indicator.querySelector(".dot").classList.remove("live");
+    label.textContent = "Monitoring OFF";
+    startBtn.disabled = false;
+    startBtn.classList.remove("monitoring");
+    startBtn.textContent = "▶ Start Monitoring";
+    stopBtn.disabled = true;
+  }
+}
+
+function showPage(name) {
+  document.querySelectorAll(".page").forEach(page => page.classList.remove("active"));
+  document.querySelectorAll(".nav").forEach(nav => nav.classList.toggle("active", nav.dataset.page === name));
+  const target = $("page-" + name);
+  if (target) target.classList.add("active");
+  const activeNav = document.querySelector(`.nav[data-page="${name}"]`);
+  $("topTitle").textContent = activeNav ? activeNav.textContent.trim() : name;
+  $("sidebar").classList.remove("open");
+  if (name === "terminal") renderTerminal();
+}
+
+document.querySelectorAll(".nav").forEach(button =>
+  button.addEventListener("click", () => showPage(button.dataset.page))
+);
+document.querySelectorAll("[data-goto]").forEach(button =>
+  button.addEventListener("click", () => showPage(button.dataset.goto))
+);
+$("menuBtn").addEventListener("click", () => $("sidebar").classList.toggle("open"));
+
+function configReady() {
+  return SUPABASE_PUBLISHABLE_KEY &&
+    !SUPABASE_PUBLISHABLE_KEY.includes("TEMPEL_") &&
+    SUPABASE_URL.startsWith("https://");
+}
+
+async function loadEvents() {
+  if (!db) throw new Error("Supabase belum dikonfigurasi.");
+  const {data, error} = await db
+    .from("monitor_events")
+    .select("id,event_type,message,metadata,created_at")
+    .order("created_at", {ascending:false})
+    .limit(500);
+
+  if (error) throw error;
+  events = Array.isArray(data) ? data : [];
+  renderAll();
+  $("lastUpdated").textContent = new Date().toLocaleTimeString("id-ID");
+  return events;
+}
+
+async function saveEvent(type, message, metadata = {}) {
+  if (!db) throw new Error("Supabase belum dikonfigurasi.");
+  const cleanMessage = String(message || "").trim().slice(0, 1000);
+  if (!cleanMessage) throw new Error("Pesan event tidak boleh kosong.");
+  if (!["info","warning","error"].includes(type)) throw new Error("Tipe event tidak valid.");
+
+  const cleanMetadata = metadata && typeof metadata === "object" && !Array.isArray(metadata)
+    ? metadata : {};
+
+  const {error} = await db.from("monitor_events").insert({
+    event_type:type,
+    message:cleanMessage,
+    metadata:cleanMetadata
+  });
+
+  if (error) throw error;
+  log("info", `Event tersimpan: ${type} — ${cleanMessage}`);
+}
+
+function renderTableRows(items, includeMetadata = false) {
+  if (!items.length) {
+    return `<tr><td colspan="${includeMetadata ? 4 : 3}" class="muted">Tidak ada data untuk ditampilkan.</td></tr>`;
+  }
+  return items.map(event => {
+    const type = ["info","warning","error"].includes(event.event_type) ? event.event_type : "info";
+    const metadata = event.metadata && typeof event.metadata === "object"
+      ? JSON.stringify(event.metadata) : "{}";
+    return `<tr>
+      <td><span class="badge ${type}">${escapeHTML(type)}</span></td>
+      <td><div class="message">${escapeHTML(event.message)}</div></td>
+      ${includeMetadata ? `<td class="muted message">${escapeHTML(metadata)}</td>` : ""}
+      <td class="muted">${escapeHTML(formatDate(event.created_at))}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderStats() {
+  const counts = {info:0, warning:0, error:0};
+  events.forEach(event => {
+    if (Object.prototype.hasOwnProperty.call(counts, event.event_type)) counts[event.event_type]++;
+  });
+  $("totalStat").textContent = events.length.toLocaleString("id-ID");
+  $("infoStat").textContent = counts.info.toLocaleString("id-ID");
+  $("warningStat").textContent = counts.warning.toLocaleString("id-ID");
+  $("errorStat").textContent = counts.error.toLocaleString("id-ID");
+
+  const now = new Date();
+  const today = events.filter(event => {
+    const d = safeDate(event.created_at);
+    return d && d.toDateString() === now.toDateString();
+  });
+  $("todayStat").textContent = today.length.toLocaleString("id-ID");
+}
+
+function dailyCounts(days = 7) {
+  const result = [];
+  const now = new Date();
+  for (let offset = days - 1; offset >= 0; offset--) {
+    const day = new Date(now);
+    day.setHours(0,0,0,0);
+    day.setDate(day.getDate() - offset);
+    const next = new Date(day);
+    next.setDate(next.getDate() + 1);
+    const count = events.filter(event => {
+      const d = safeDate(event.created_at);
+      return d && d >= day && d < next;
+    }).length;
+    result.push({
+      label: day.toLocaleDateString("id-ID", {day:"2-digit",month:"short"}),
+      count
+    });
+  }
+  return result;
+}
+
+function renderChart() {
+  const data = dailyCounts(7);
+  const max = Math.max(1, ...data.map(item => item.count));
+  $("activityChart").innerHTML = data.map(item => `
+    <div class="bar-wrap" title="${item.count} events">
+      <div class="bar" style="height:${Math.max(2, item.count/max*82)}%"></div>
+      <span class="bar-label">${escapeHTML(item.label)}</span>
+    </div>`).join("");
+}
+
+function getSource(event) {
+  const meta = event.metadata && typeof event.metadata === "object" ? event.metadata : {};
+  return String(meta.source || meta.module || meta.origin || "Unknown").slice(0,100);
+}
+
+function renderActivity() {
+  const sources = new Map();
+  events.forEach(event => {
+    const name = getSource(event);
+    const previous = sources.get(name) || {count:0, latest:event.created_at};
+    previous.count++;
+    const currentDate = safeDate(event.created_at);
+    const previousDate = safeDate(previous.latest);
+    if (currentDate && (!previousDate || currentDate > previousDate)) previous.latest = event.created_at;
+    sources.set(name, previous);
+  });
+  $("sourceStat").textContent = sources.size.toLocaleString("id-ID");
+  const rows = [...sources.entries()].sort((a,b) => b[1].count-a[1].count);
+  $("sourceTable").innerHTML = rows.length ? rows.map(([name, data]) => `
+    <tr><td>${escapeHTML(name)}</td><td>${data.count}</td><td class="muted">${escapeHTML(formatDate(data.latest))}</td></tr>
+  `).join("") : `<tr><td colspan="3" class="muted">Belum ada data sumber.</td></tr>`;
+}
+
+function renderAnalytics() {
+  const total = events.length || 1;
+  const counts = {info:0,warning:0,error:0};
+  events.forEach(event => {
+    if (Object.prototype.hasOwnProperty.call(counts,event.event_type)) counts[event.event_type]++;
+  });
+  $("distribution").innerHTML = Object.entries(counts).map(([type,count]) => `
+    <div style="margin:18px 0">
+      <div style="display:flex;justify-content:space-between;margin-bottom:7px">
+        <span>${escapeHTML(type.toUpperCase())}</span><strong>${count}</strong>
+      </div>
+      <div style="height:7px;background:#1a2636;border-radius:8px;overflow:hidden">
+        <div style="width:${count/total*100}%;height:100%;background:${type==="error"?"var(--red)":type==="warning"?"var(--yellow)":"var(--blue)"}"></div>
+      </div>
+    </div>`).join("");
+
+  const daily = dailyCounts(7);
+  const average = (daily.reduce((sum,item) => sum + item.count,0)/7).toFixed(1);
+  $("analyticsSummary").innerHTML = `
+    <div class="health-row"><strong>Total events loaded</strong><span>${events.length}</span></div>
+    <div class="health-row"><strong>Average daily events</strong><span>${average}</span></div>
+    <div class="health-row"><strong>Warnings + errors</strong><span>${counts.warning+counts.error}</span></div>
+    <div class="health-row"><strong>Latest event</strong><span class="muted">${escapeHTML(events[0] ? formatDate(events[0].created_at) : "—")}</span></div>`;
+
+  $("dailyAnalytics").innerHTML = daily.map(item => `
+    <div class="health-row"><span>${escapeHTML(item.label)}</span><strong>${item.count} events</strong></div>
+  `).join("");
+}
+
+function renderRecent() {
+  $("recentTable").innerHTML = renderTableRows(events.slice(0,6));
+}
+
+function renderFilteredEvents() {
+  const query = $("searchEvents").value.trim().toLowerCase();
+  const type = $("filterType").value;
+  const filtered = events.filter(event =>
+    (!type || event.event_type === type) &&
+    (!query || String(event.message).toLowerCase().includes(query))
+  );
+  $("eventsTable").innerHTML = renderTableRows(filtered, true);
+  $("eventsEmpty").hidden = filtered.length !== 0;
+}
+
+function renderAll() {
+  renderStats();
+  renderChart();
+  renderRecent();
+  renderFilteredEvents();
+  renderActivity();
+  renderAnalytics();
+}
+
+$("searchEvents").addEventListener("input", renderFilteredEvents);
+$("filterType").addEventListener("change", renderFilteredEvents);
+$("clearFilters").addEventListener("click", () => {
+  $("searchEvents").value = "";
+  $("filterType").value = "";
+  renderFilteredEvents();
+});
+
+$("newEventBtn").addEventListener("click", () => {
+  $("eventFormCard").style.display = "block";
+  $("eventMessage").focus();
+});
+$("closeEventForm").addEventListener("click", () => {
+  $("eventFormCard").style.display = "none";
+});
+
+$("eventForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = $("saveEventBtn");
+  button.disabled = true;
+  button.textContent = "Saving...";
+  try {
+    const type = $("eventType").value;
+    const message = $("eventMessage").value;
+    const source = $("eventSource").value.trim();
+    let metadata = {};
+    const raw = $("eventMetadata").value.trim();
+
+    if (raw) {
+      metadata = JSON.parse(raw);
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+        throw new Error("Metadata harus berupa JSON object.");
+      }
+    }
+    if (source) metadata.source = source;
+    await saveEvent(type, message, metadata);
+    $("eventForm").reset();
+    $("eventFormCard").style.display = "none";
+    await loadEvents();
+    toast("Event berhasil disimpan.");
+  } catch (error) {
+    log("error", error.message || "Gagal menyimpan event.");
+    toast("Gagal: " + (error.message || "Terjadi kesalahan."));
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save Event";
+  }
+});
+
+$("refreshBtn").addEventListener("click", async () => {
+  try {
+    await loadEvents();
+    log("info", "Data berhasil diperbarui.");
+    toast("Data berhasil diperbarui.");
+  } catch (error) {
+    log("error", error.message);
+    toast("Gagal memuat data: " + error.message);
+  }
+});
+
+$("runAnalysis").addEventListener("click", () => {
+  const errors = events.filter(e => e.event_type === "error");
+  const warnings = events.filter(e => e.event_type === "warning");
+  const info = events.filter(e => e.event_type === "info");
+  const recentErrors = errors.slice(0,5);
+  const advice = [];
+
+  if (errors.length) advice.push("Periksa event error terbaru dan cocokkan pesan dengan sumbernya.");
+  if (warnings.length) advice.push("Tinjau warning untuk mencari pola yang berulang.");
+  if (!events.length) advice.push("Database belum berisi event. Tambahkan event uji melalui Live Monitor.");
+  if (!errors.length && !warnings.length && events.length) advice.push("Tidak ditemukan event warning atau error pada data yang dimuat.");
+  advice.push("Analisis ini hanya menghitung dan merangkum data; bukan pemeriksaan kode Lua secara otomatis.");
+
+  $("analysisOutput").innerHTML = `
+    <div class="grid stats">
+      <div class="card"><div class="muted small">Info</div><div class="stat-number">${info.length}</div></div>
+      <div class="card"><div class="muted small">Warnings</div><div class="stat-number">${warnings.length}</div></div>
+      <div class="card"><div class="muted small">Errors</div><div class="stat-number">${errors.length}</div></div>
+      <div class="card"><div class="muted small">Total</div><div class="stat-number">${events.length}</div></div>
+    </div>
+    <h4>Rekomendasi</h4>
+    <ul>${advice.map(item => `<li style="margin:9px 0">${escapeHTML(item)}</li>`).join("")}</ul>
+    ${recentErrors.length ? `<h4>Recent Errors</h4><ul>${recentErrors.map(e => `<li style="margin:8px 0">${escapeHTML(e.message)} <span class="muted">(${escapeHTML(formatDate(e.created_at))})</span></li>`).join("")}</ul>` : ""}
+  `;
+  log("info", "Analisis lokal selesai.");
+});
+
+$("downloadLogs").addEventListener("click", () => {
+  const content = localLogs.map(item => `[${item.time}] [${item.level.toUpperCase()}] ${item.message}`).join("\n");
+  const blob = new Blob([content || "No logs"], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "lua-monitor-logs.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+$("clearLocalLogs").addEventListener("click", () => {
+  localLogs = [];
+  renderTerminal();
+  toast("Tampilan log lokal dibersihkan.");
+});
+
+$("settingsUrl").value = SUPABASE_URL;
+$("sqlPreview").textContent = SQL_SCHEMA;
+
+$("copySql").addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(SQL_SCHEMA);
+    toast("SQL schema disalin.");
+  } catch {
+    toast("Clipboard tidak tersedia. Salin SQL secara manual.");
+  }
+});
+
+$("testConnection").addEventListener("click", async () => {
+  if (!db) {
+    $("settingsResult").textContent = "Supabase belum dikonfigurasi. Isi publishable key di bagian konfigurasi kode.";
+    return;
+  }
+  try {
+    const {error} = await db.from("monitor_events").select("id").limit(1);
+    if (error) throw error;
+    $("settingsResult").textContent = "Koneksi berhasil. Tabel dapat dibaca menggunakan konfigurasi saat ini.";
+    toast("Koneksi Supabase berhasil.");
+    log("info", "Tes koneksi berhasil.");
+  } catch (error) {
+    $("settingsResult").textContent = "Koneksi gagal: " + error.message;
+    log("error", "Tes koneksi gagal: " + error.message);
+  }
+});
+
+/* ============================================
+   REALTIME MONITORING (START / STOP)
+============================================ */
+function stopRealtimeChannel() {
+  if (realtimeChannel) {
+    try {
+      db.removeChannel(realtimeChannel);
+    } catch (error) {
+      log("warning", "Gagal remove channel: " + error.message);
+    }
+    realtimeChannel = null;
+  }
+  realtimeReady = false;
+  $("rtHealth").textContent = "Stopped";
+  $("rtHealth").className = "badge warning";
+}
+
+function startRealtimeChannel() {
+  if (!db) {
+    toast("Supabase belum terhubung.");
+    return;
+  }
+  if (realtimeChannel) {
+    stopRealtimeChannel();
+  }
+
+  $("rtHealth").textContent = "Connecting";
+  $("rtHealth").className = "badge warning";
+
+  realtimeChannel = db.channel("monitor-events-live-" + Date.now())
+    .on("postgres_changes", {
+      event:"*",
+      schema:"public",
+      table:"monitor_events"
+    }, async payload => {
+      log("info", `Realtime event diterima: ${payload.eventType || "change"}`);
+      try {
+        await loadEvents();
+      } catch (error) {
+        log("error", "Realtime refresh gagal: " + error.message);
+      }
+    })
+    .subscribe(status => {
+      if (status === "SUBSCRIBED") {
+        realtimeReady = true;
+        $("rtHealth").textContent = "Connected";
+        $("rtHealth").className = "badge info";
+        log("info", "Realtime listener aktif.");
+        toast("Monitoring live dimulai.");
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        realtimeReady = false;
+        $("rtHealth").textContent = "Error";
+        $("rtHealth").className = "badge error";
+        log("warning", "Realtime bermasalah: " + status);
+      } else if (status === "CLOSED") {
+        realtimeReady = false;
+        $("rtHealth").textContent = "Closed";
+        $("rtHealth").className = "badge warning";
+      }
+    });
+}
+
+$("startMonitorBtn").addEventListener("click", async () => {
+  if (!db) {
+    toast("Supabase belum terhubung. Cek konfigurasi.");
+    return;
+  }
+  log("info", "Start monitoring diminta oleh user.");
+  setMonitoringUI(true);
+  try {
+    await loadEvents();
+  } catch (error) {
+    log("warning", "Gagal refresh awal: " + error.message);
+  }
+  startRealtimeChannel();
+});
+
+$("stopMonitorBtn").addEventListener("click", () => {
+  log("info", "Stop monitoring diminta oleh user.");
+  stopRealtimeChannel();
+  setMonitoringUI(false);
+  toast("Monitoring dihentikan.");
+});
+
+async function initSupabase() {
+  if (!configReady()) {
+    setConnection(false, "Publishable key belum diisi");
+    $("settingsResult").textContent = "Buka kode index.html dan isi SUPABASE_PUBLISHABLE_KEY.";
+    log("warning", "Supabase belum dikonfigurasi. Isi publishable key.");
+    $("rtHealth").textContent = "Not configured";
+    $("rtHealth").className = "badge warning";
+    setMonitoringUI(false);
+    return;
+  }
+
+  try {
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    await loadEvents();
+    setConnection(true, "Database connected");
+    $("settingsResult").textContent = "Terhubung ke Supabase.";
+    log("info", `Koneksi Supabase berhasil. ${events.length} event dimuat.`);
+    setMonitoringUI(false);
+    $("rtHealth").textContent = "Stopped";
+    $("rtHealth").className = "badge warning";
+  } catch (error) {
+    setConnection(false, "Gagal terhubung ke database");
+    $("settingsResult").textContent = "Koneksi gagal: " + error.message;
+    $("rtHealth").textContent = "Offline";
+    $("rtHealth").className = "badge error";
+    log("error", "Supabase error: " + error.message);
+    setMonitoringUI(false);
+  }
+}
+
+setInterval(() => {
+  $("clock").textContent = new Date().toLocaleTimeString("id-ID", {hour12:false});
+}, 1000);
+
+window.addEventListener("online", () => log("info", "Browser kembali online."));
+window.addEventListener("offline", () => log("warning", "Browser offline."));
+
+log("info", "Lua Live Monitor AI dimulai.");
+log("info", "Menyiapkan koneksi Supabase...");
+initSupabase();
+</script></body>
+</html>
